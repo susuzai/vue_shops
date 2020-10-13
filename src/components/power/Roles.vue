@@ -12,7 +12,9 @@
       <!-- 添加角色按钮 -->
       <el-row>
         <el-col>
-          <el-button type="primary">添加角色</el-button>
+          <el-button type="primary" @click="showAddRoleDialog"
+            >添加角色</el-button
+          >
         </el-col>
       </el-row>
       <!-- 角色列表区域 -->
@@ -77,9 +79,13 @@
         <el-table-column label="操作" width="300px">
           <!-- 作用域插槽 -->
           <template slot-scope="scope">
-            <el-button type="primary" icon="el-icon-edit" size="mini"
+            <el-button type="primary" icon="el-icon-edit" size="mini" @click="showEditRoleDialog(scope.row.id)"
               >编辑</el-button
-            ><el-button type="danger" icon="el-icon-delete" size="mini"
+            ><el-button
+              type="danger"
+              icon="el-icon-delete"
+              size="mini"
+              @click="removeRoleById(scope.row.id)"
               >删除</el-button
             ><el-button
               type="warning"
@@ -113,11 +119,70 @@
       <!-- 底部按钮区域 -->
       <span slot="footer" class="dialog-footer">
         <el-button @click="setRightDialogVisible = false">取 消</el-button>
-        <el-button type="primary" @click="allotRights"
-          >确 定</el-button
-        >
+        <el-button type="primary" @click="allotRights">确 定</el-button>
       </span>
     </el-dialog>
+
+    <!-- 添加角色对话框 -->
+    <el-dialog
+      title="添加角色"
+      :visible.sync="addRoleDialogVisible"
+      width="50%"
+      @close="addRoleClosed"
+    >
+      <!-- 主体表单区域 -->
+      <el-form
+        :model="addRole"
+        :rules="addRoleRules"
+        ref="addRoleRef"
+        label-width="80px"
+      >
+        <!-- 角色名称 -->
+        <el-form-item label="角色名称" prop="roleName">
+          <el-input v-model="addRole.roleName"></el-input>
+        </el-form-item>
+        <!-- 角色描述 -->
+        <el-form-item label="角色描述">
+          <el-input v-model="addRole.roleDesc"></el-input>
+        </el-form-item>
+      </el-form>
+      <!-- 底部按钮区域 -->
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="addRoleDialogVisible = false">取 消</el-button>
+        <el-button type="primary" @click="addRoleDialog">确 定</el-button>
+      </span>
+    </el-dialog>
+
+    <!-- 编辑角色对话框 -->
+     <el-dialog
+      title="编辑角色"
+      :visible.sync="editRoleDialogVisible"
+      width="50%"
+      @close="editRoleClosed"
+    >
+      <!-- 主体表单区域 -->
+      <el-form
+        :model="editRole"
+        :rules="editRoleRules"
+        ref="editRoleRef"
+        label-width="80px"
+      >
+        <!-- 角色名称 -->
+        <el-form-item label="角色名称" prop="roleName">
+          <el-input v-model="editRole.roleName"></el-input>
+        </el-form-item>
+        <!-- 角色描述 -->
+        <el-form-item label="角色描述">
+          <el-input v-model="editRole.roleDesc"></el-input>
+        </el-form-item>
+      </el-form>
+      <!-- 底部按钮区域 -->
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="editRoleDialogVisible = false">取 消</el-button>
+        <el-button type="primary" @click="editRoleDialog">确 定</el-button>
+      </span>
+    </el-dialog>
+
   </div>
 </template>
 <script>
@@ -138,7 +203,37 @@ export default {
       // 默认选中的节点id值数组
       defKeys: [],
       // 角色id
-      roleId: ''
+      roleId: '',
+      // 控制添加角色对话框的显示与隐藏(默认隐藏)
+      addRoleDialogVisible: false,
+      // 控制编辑角色对话框的显示与隐藏(默认隐藏)
+      editRoleDialogVisible: false,
+
+      // 添加角色的验证规则对象
+      addRoleRules: {
+        // 角色名称验证规则
+        roleName: [
+          // 必填
+          { required: true, message: '请输入用户角色', trigger: 'blur' }
+        ]
+      },
+      // 编辑角色的验证规则对象
+      editRoleRules: {
+        roleName: [
+          // 必填
+          { required: true, message: '请输入用户角色', trigger: 'blur' }
+        ]
+      },
+      // 添加角色的表单数据
+      addRole: {
+        roleName: '',
+        roleDesc: ''
+      },
+      // 编辑角色的表单数据
+      editRole: {
+        roleName: '',
+        roleDesc: ''
+      }
     }
   },
   created () {
@@ -224,11 +319,11 @@ export default {
       // 判断节点是否为三级节点
       if (node.children) {
         // 不是三级节点  逐次遍历children
-        node.children.forEach(item => {
+        node.children.forEach((item) => {
           this.getLeafKeys(item, arr)
         })
       } else {
-      // 是三级节点  向数组添加该id
+        // 是三级节点  向数组添加该id
         arr.push(node.id)
       }
     },
@@ -245,9 +340,12 @@ export default {
         this.$refs.treeRef.getHalfCheckedKeys()
       ]
       // 发送ajax请求 更改权限
-      const { data: res } = await this.$http.post(`roles/${this.roleId}/rights`, {
-        rids: keys.join(',')
-      })
+      const { data: res } = await this.$http.post(
+        `roles/${this.roleId}/rights`,
+        {
+          rids: keys.join(',')
+        }
+      )
       // 判断是否分配成功
       if (res.meta.status !== 200) {
         // 失败
@@ -263,6 +361,119 @@ export default {
       this.getRoleList()
       // 关闭对话框
       this.setRightDialogVisible = false
+    },
+    // 点击删除按钮 询问删除该角色
+    removeRoleById (id) {
+      // 询问客户是否删除
+      this.$confirm('是否删除该角色', '提示', {
+        confirmButtonText: '是',
+        cancelButtonText: '否',
+        type: 'info'
+      })
+        .then(async (action) => {
+          // 点击是
+          // 发送ajax请求进行删除该角色
+          const { data: res } = await this.$http.delete(`roles/${id}`)
+          // 判断是否发生ajax错误
+          if (res.meta.status !== 200) {
+            // 失败
+            return this.$message({
+              message: res.meta.msg,
+              type: 'error',
+              showClose: true,
+              duration: 3000
+            })
+          }
+          // 成功
+          // 重新渲染页面
+          this.getRoleList()
+        })
+        .catch(() => {
+          // 点击否
+        })
+    },
+    // 点击添加用户控制对话框显示
+    showAddRoleDialog () {
+      this.addRoleDialogVisible = true
+    },
+    //  点击"确定"  发送ajax请求进行添加角色
+    addRoleDialog () {
+      // 表单预验证
+      this.$refs.addRoleRef.validate(async (valid) => {
+        if (!valid) {
+          // 验证不通过
+          return
+        }
+        // 验证通过
+        // 发送ajax请求进行添加角色
+        const { data: res } = await this.$http.post('roles', this.addRole)
+        // 判断是否请求成功
+        if (res.meta.status !== 201) {
+          // 失败
+          return this.$message({
+            message: res.meta.msg,
+            type: 'error',
+            showClose: true,
+            duration: 3000
+          })
+        }
+        // 成功
+        // 重新渲染页面
+        this.getRoleList()
+        // 关闭添加角色对话框
+        this.addRoleDialogVisible = false
+      })
+    },
+    // 关闭添加角色对话框  清空数据
+    addRoleClosed () {
+      this.$refs.addRoleRef.resetFields()
+    },
+    // 点击"编辑"按钮进行编辑角色  显示对话框 发送ajax请求进行编辑
+    async  showEditRoleDialog (id) {
+      // 发送ajax请求 获取该项角色信息
+      const { data: res } = await this.$http.get(`roles/${id}`)
+      console.log(res)
+      // 判断是否获取成功
+      if (res.meta.status !== 200) {
+        // 失败
+        return this.$message({
+          message: res.meta.msg,
+          type: 'error',
+          showClose: true,
+          duration: 3000
+        })
+      }
+      // 成功
+      // 存储该项角色id
+      this.roleId = res.data.roleId
+      // 给编辑列表赋值
+      this.editRole = res.data
+      // 显示编辑角色对话框
+      this.editRoleDialogVisible = true
+    },
+    // 关闭编辑角色对话  清空数据
+    editRoleClosed () {
+      this.$refs.editRoleRef.resetFields()
+    },
+    // 点击 "确定"按钮 发送ajax请求进行提交已经修改好的数据 并 关闭对话框
+    async editRoleDialog () {
+      // 发送ajax请求  进行修改角色信息
+      const { data: res } = await this.$http.put(`roles/${this.roleId}`, this.editRole)
+      // 判断是否发生请求成功
+      if (res.meta.status !== 200) {
+        // 失败
+        return this.$message({
+          message: res.meta.msg,
+          type: 'error',
+          showClose: true,
+          duration: 3000
+        })
+      }
+      // 成功
+      // 重新渲染页面
+      this.getRoleList()
+      // 关闭编辑角色对话框
+      this.editRoleDialogVisible = false
     }
   }
 }
